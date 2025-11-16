@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Advanced Refer & Earn Telegram Bot (Pyrogram) â€” V2
+Advanced Refer & Earn Telegram Bot (Pyrogram) — V2
 --------------------------------------------------
 User menu = NORMAL keyboard (as requested)
 Admin panel = Inline keyboard
 
 User features:
 - Normal keyboard:
-    ðŸ’° Balance        ðŸŽ Daily Bonus
-    ðŸ‘¥ Invite          ðŸ’µ Withdraw
-                  ðŸ“¢ Support
+    💰 Balance        🎁 Daily Bonus
+    👥 Invite          💵 Withdraw
+                  📢 Support
 - Must-join channels gate (cannot use bot until joined)
-- Daily bonus (default â‚¹1, once per day)
+- Daily bonus (default ₹1, once per day)
 - Referral system:
     * Referral bonus ONLY when the referred user joins all required channels (verified)
     * Anti-fake: if verified user later leaves a required channel, the bot blocks actions until they rejoin
@@ -59,7 +59,7 @@ DEFAULTS = {
     "DAILY_BONUS": "1",
     "REFERRAL_BONUS": "1",
     "MIN_WITHDRAW": "50",
-    "CURRENCY": "â‚¹",
+    "CURRENCY": "₹",
     "WELCOME_TEXT": "Welcome to Refer & Earn Bot! Earn by inviting friends.",
     "MAINTENANCE": "0",
     "ACTIVE_DAYS": "30"   # days for "active users"
@@ -279,26 +279,26 @@ app = Client(
 def user_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton("ðŸ’° Balance"), KeyboardButton("ðŸŽ Daily Bonus")],
-            [KeyboardButton("ðŸ‘¥ Invite"), KeyboardButton("ðŸ’µ Withdraw")],
-            [KeyboardButton("ðŸ“¢ Support")]
+            [KeyboardButton("💰 Balance"), KeyboardButton("🎁 Daily Bonus")],
+            [KeyboardButton("👥 Invite"), KeyboardButton("💵 Withdraw")],
+            [KeyboardButton("📢 Support")]
         ],
         resize_keyboard=True
     )
 
 def admin_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("ðŸ‘‘ Admins", callback_data="A:ADMINS"),
-         InlineKeyboardButton("#ï¸âƒ£ Channels", callback_data="A:CHANS")],
-        [InlineKeyboardButton("ðŸ§° Settings", callback_data="A:SET"),
-         InlineKeyboardButton("ðŸ›  Maintenance", callback_data="A:MAINT")],
-        [InlineKeyboardButton("ðŸ’¸ Payouts", callback_data="A:PAYOUTS"),
-         InlineKeyboardButton("ðŸ“£ Broadcast", callback_data="A:BC")],
-        [InlineKeyboardButton("ðŸš« Ban/Unban", callback_data="A:BANSET"),
-         InlineKeyboardButton("âž•âž– Balance", callback_data="A:BALSET")],
-        [InlineKeyboardButton("ðŸ”Ž Lookup User", callback_data="A:LOOKUP"),
-         InlineKeyboardButton("ðŸ“¤ Export", callback_data="A:EXPORT")],
-        [InlineKeyboardButton("ðŸ§° Owner Tools", callback_data="A:OWNER")]
+        [InlineKeyboardButton("👑 Admins", callback_data="A:ADMINS"),
+         InlineKeyboardButton("#️⃣ Channels", callback_data="A:CHANS")],
+        [InlineKeyboardButton("🧰 Settings", callback_data="A:SET"),
+         InlineKeyboardButton("🛠 Maintenance", callback_data="A:MAINT")],
+        [InlineKeyboardButton("💸 Payouts", callback_data="A:PAYOUTS"),
+         InlineKeyboardButton("📣 Broadcast", callback_data="A:BC")],
+        [InlineKeyboardButton("🚫 Ban/Unban", callback_data="A:BANSET"),
+         InlineKeyboardButton("➕➖ Balance", callback_data="A:BALSET")],
+        [InlineKeyboardButton("🔎 Lookup User", callback_data="A:LOOKUP"),
+         InlineKeyboardButton("📤 Export", callback_data="A:EXPORT")],
+        [InlineKeyboardButton("🧰 Owner Tools", callback_data="A:OWNER")]
     ])
 
 async def ensure_joined(user_id: int) -> List[str]:
@@ -317,7 +317,7 @@ async def send_join_prompt(chat_id: int):
     if not chans:
         return await app.send_message(chat_id, "No required channels set by admin.")
     rows = [[InlineKeyboardButton(ch, url=f"https://t.me/{ch.lstrip('@')}")] for ch in chans]
-    rows.append([InlineKeyboardButton("âœ… I've joined", callback_data="U:JOINED")])
+    rows.append([InlineKeyboardButton("✅ I've joined", callback_data="U:JOINED")])
     await app.send_message(chat_id, "Please join all channels to continue:", reply_markup=InlineKeyboardMarkup(rows))
 
 async def maybe_verify_and_credit(uid: int):
@@ -338,7 +338,7 @@ async def maybe_verify_and_credit(uid: int):
                 credit(user["referrer_id"], amt)
                 set_ref_bonus_paid(uid)
                 try:
-                    await app.send_message(user["referrer_id"], f"ðŸŽ‰ Your referral verified! +{get_setting('CURRENCY')}{amt:.2f}")
+                    await app.send_message(user["referrer_id"], f"🎉 Your referral verified! +{get_setting('CURRENCY')}{amt:.2f}")
                 except Exception:
                     pass
             except Exception:
@@ -359,10 +359,10 @@ async def start_cmd(client: Client, m: Message):
     mark_seen(m.from_user.id)
 
     if get_setting("MAINTENANCE") == "1" and not is_admin(m.from_user.id):
-        return await m.reply_text("ðŸš§ Bot is under maintenance. Please try again later.")
+        return await m.reply_text("🚧 Bot is under maintenance. Please try again later.")
 
     if is_banned(m.from_user.id):
-        return await m.reply_text("ðŸš« You are banned from using this bot.")
+        return await m.reply_text("🚫 You are banned from using this bot.")
 
     # On /start show keyboard and gate if needed
     need = await ensure_joined(m.from_user.id)
@@ -386,14 +386,14 @@ async def joined_confirm(client: Client, cq: CallbackQuery):
         return await cq.answer("Still missing some channels.", show_alert=True)
     await maybe_verify_and_credit(uid)
     await cq.answer("All set!", show_alert=True)
-    await cq.message.reply_text("âœ… Thanks for joining. You can use the menu now.", reply_markup=user_keyboard())
+    await cq.message.reply_text("✅ Thanks for joining. You can use the menu now.", reply_markup=user_keyboard())
 
 # Unified user text router (NORMAL keyboard labels)
-USER_BAL = "ðŸ’° Balance"
-USER_BONUS = "ðŸŽ Daily Bonus"
-USER_INVITE = "ðŸ‘¥ Invite"
-USER_WITHDRAW = "ðŸ’µ Withdraw"
-USER_SUPPORT = "ðŸ“¢ Support"
+USER_BAL = "💰 Balance"
+USER_BONUS = "🎁 Daily Bonus"
+USER_INVITE = "👥 Invite"
+USER_WITHDRAW = "💵 Withdraw"
+USER_SUPPORT = "📢 Support"
 
 @app.on_message(filters.text & ~filters.command(["start", "admin"]))
 async def user_text_router(client: Client, m: Message):
@@ -404,7 +404,7 @@ async def user_text_router(client: Client, m: Message):
     if get_setting("MAINTENANCE") == "1" and not is_admin(uid):
         return
     if is_banned(uid):
-        return await m.reply_text("ðŸš« You are banned from using this bot.")
+        return await m.reply_text("🚫 You are banned from using this bot.")
 
     # channel gate on each action
     need = await ensure_joined(uid)
@@ -419,7 +419,7 @@ async def user_text_router(client: Client, m: Message):
 
     if text == USER_BAL:
         bal = get_balance(uid)
-        return await m.reply_text(f"ðŸ§¾ <b>Your Balance:</b> {get_setting('CURRENCY')}{bal:.2f}", reply_markup=user_keyboard())
+        return await m.reply_text(f"🧾 <b>Your Balance:</b> {get_setting('CURRENCY')}{bal:.2f}", reply_markup=user_keyboard())
 
     if text == USER_BONUS:
         last = get_last_bonus_date(uid)
@@ -431,7 +431,7 @@ async def user_text_router(client: Client, m: Message):
         set_last_bonus_today(uid)
         bal = get_balance(uid)
         return await m.reply_text(
-            f"ðŸŽ Daily bonus credited: {get_setting('CURRENCY')}{amt:.2f}\nCurrent balance: {get_setting('CURRENCY')}{bal:.2f}",
+            f"🎁 Daily bonus credited: {get_setting('CURRENCY')}{amt:.2f}\nCurrent balance: {get_setting('CURRENCY')}{bal:.2f}",
             reply_markup=user_keyboard()
         )
 
@@ -439,7 +439,7 @@ async def user_text_router(client: Client, m: Message):
         bot = await app.get_me()
         link = f"https://t.me/{bot.username}?start={uid}"
         return await m.reply_text(
-            "ðŸ‘¥ <b>Invite & Earn</b>\n"
+            "👥 <b>Invite & Earn</b>\n"
             f"Share your link: <code>{link}</code>\n"
             f"Referral bonus (on verification): {get_setting('CURRENCY')}{float(get_setting('REFERRAL_BONUS')):.2f}",
             reply_markup=user_keyboard()
@@ -448,12 +448,12 @@ async def user_text_router(client: Client, m: Message):
     if text == USER_WITHDRAW:
         STATE[uid] = {"step": "wd_amount"}
         return await m.reply_text(
-            f"ðŸ’³ <b>Withdrawal</b>\nMinimum: {get_setting('CURRENCY')}{float(get_setting('MIN_WITHDRAW')):.2f}\nEnter the amount you want to withdraw:",
+            f"💳 <b>Withdrawal</b>\nMinimum: {get_setting('CURRENCY')}{float(get_setting('MIN_WITHDRAW')):.2f}\nEnter the amount you want to withdraw:",
             reply_markup=user_keyboard()
         )
 
     if text == USER_SUPPORT:
-        return await m.reply_text("ðŸ“¢ Support: Please wait, support will contact you.", reply_markup=user_keyboard())
+        return await m.reply_text("📢 Support: Please wait, support will contact you.", reply_markup=user_keyboard())
 
     # Withdrawal steps
     st = STATE.get(uid)
@@ -480,8 +480,8 @@ async def user_text_router(client: Client, m: Message):
         )
         con.commit(); con.close()
         STATE.pop(uid, None)
-        await notify_admins(f"ðŸ†• Withdrawal Request\nUser: <a href='tg://user?id={uid}'>{uid}</a>\nAmount: {get_setting('CURRENCY')}{amt:.2f}\nUPI: <code>{upi}</code>")
-        return await m.reply_text("âœ… Request submitted. Admins will review soon.", reply_markup=user_keyboard())
+        await notify_admins(f"🆕 Withdrawal Request\nUser: <a href='tg://user?id={uid}'>{uid}</a>\nAmount: {get_setting('CURRENCY')}{amt:.2f}\nUPI: <code>{upi}</code>")
+        return await m.reply_text("✅ Request submitted. Admins will review soon.", reply_markup=user_keyboard())
 
 # ----------------------- Admin Panel -----------------------
 
@@ -506,31 +506,31 @@ async def admin_callbacks(client: Client, cq: CallbackQuery):
     if code == "ADMINS":
         STATE[uid] = {"step": "admin_menu"}
         kb = InlineKeyboardMarkup([
-            [InlineKeyboardButton("âž• Add Admin", callback_data="A:ADM_ADD")],
-            [InlineKeyboardButton("âž– Remove Admin", callback_data="A:ADM_REM")],
-            [InlineKeyboardButton("â¬…ï¸ Back", callback_data="A:BACK")]
+            [InlineKeyboardButton("➕ Add Admin", callback_data="A:ADM_ADD")],
+            [InlineKeyboardButton("➖ Remove Admin", callback_data="A:ADM_REM")],
+            [InlineKeyboardButton("⬅️ Back", callback_data="A:BACK")]
         ])
-        return await cq.message.edit_text("ðŸ‘‘ <b>Admins</b>", reply_markup=kb)
+        return await cq.message.edit_text("👑 <b>Admins</b>", reply_markup=kb)
 
     if code == "ADM_ADD":
         STATE[uid] = {"step": "add_admin"}
         return await cq.message.edit_text("Send numeric Telegram user ID to add as admin.\n\nOr press Back.",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("â¬…ï¸ Back", callback_data="A:ADMINS")]]))
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back", callback_data="A:ADMINS")]]))
 
     if code == "ADM_REM":
         STATE[uid] = {"step": "rem_admin"}
         return await cq.message.edit_text("Send numeric Telegram user ID to remove from admins.\n\nOr press Back.",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("â¬…ï¸ Back", callback_data="A:ADMINS")]]))
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back", callback_data="A:ADMINS")]]))
 
     # ----- Channels -----
     if code == "CHANS":
         chans = list_channels()
         rows = [[InlineKeyboardButton(ch, callback_data=f"A:CHAN_DEL|{ch}") ] for ch in chans] if chans else []
         rows += [
-            [InlineKeyboardButton("âž• Add Channel", callback_data="A:CHAN_ADD")],
-            [InlineKeyboardButton("â¬…ï¸ Back", callback_data="A:BACK")]
+            [InlineKeyboardButton("➕ Add Channel", callback_data="A:CHAN_ADD")],
+            [InlineKeyboardButton("⬅️ Back", callback_data="A:BACK")]
         ]
-        return await cq.message.edit_text("#ï¸âƒ£ <b>Required Channels</b>", reply_markup=InlineKeyboardMarkup(rows))
+        return await cq.message.edit_text("#️⃣ <b>Required Channels</b>", reply_markup=InlineKeyboardMarkup(rows))
 
     if code.startswith("CHAN_DEL|"):
         ch = code.split("|",1)[1]
@@ -541,7 +541,7 @@ async def admin_callbacks(client: Client, cq: CallbackQuery):
     if code == "CHAN_ADD":
         STATE[uid] = {"step": "add_channel"}
         return await cq.message.edit_text("Send channel @username or https://t.me/ link to require.\n\nOr press Back.",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("â¬…ï¸ Back", callback_data="A:CHANS")]]))
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back", callback_data="A:CHANS")]]))
 
     # ----- Settings -----
     if code == "SET":
@@ -552,7 +552,7 @@ async def admin_callbacks(client: Client, cq: CallbackQuery):
             [InlineKeyboardButton("CURRENCY", callback_data="A:SETK|CURRENCY")],
             [InlineKeyboardButton("WELCOME_TEXT", callback_data="A:SETK|WELCOME_TEXT")],
             [InlineKeyboardButton("ACTIVE_DAYS", callback_data="A:SETK|ACTIVE_DAYS")],
-            [InlineKeyboardButton("â¬…ï¸ Back", callback_data="A:BACK")]
+            [InlineKeyboardButton("⬅️ Back", callback_data="A:BACK")]
         ])
         current = (f"<b>Settings</b>\n"
                    f"DAILY_BONUS: {get_setting('DAILY_BONUS')}\n"
@@ -567,28 +567,28 @@ async def admin_callbacks(client: Client, cq: CallbackQuery):
         key = code.split("|",1)[1]
         STATE[uid] = {"step": "set_value", "key": key}
         return await cq.message.edit_text(f"Send new value for <b>{key}</b>.\n\nOr press Back.",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("â¬…ï¸ Back", callback_data="A:SET")]]))
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back", callback_data="A:SET")]]))
 
     # ----- Maintenance -----
     if code == "MAINT":
         current = get_setting("MAINTENANCE")
         new = "0" if current == "1" else "1"
         set_setting("MAINTENANCE", new)
-        return await cq.message.edit_text(f"ðŸ›  Maintenance is now {'ON' if new=='1' else 'OFF'}.", reply_markup=admin_menu())
+        return await cq.message.edit_text(f"🛠 Maintenance is now {'ON' if new=='1' else 'OFF'}.", reply_markup=admin_menu())
 
     # ----- Broadcast -----
     if code == "BC":
         kb = InlineKeyboardMarkup([
             [InlineKeyboardButton("Send to ALL", callback_data="A:BCALL")],
             [InlineKeyboardButton("Send to ACTIVE", callback_data="A:BCACT")],
-            [InlineKeyboardButton("â¬…ï¸ Back", callback_data="A:BACK")]
+            [InlineKeyboardButton("⬅️ Back", callback_data="A:BACK")]
         ])
-        return await cq.message.edit_text("ðŸ“£ Broadcast mode?", reply_markup=kb)
+        return await cq.message.edit_text("📣 Broadcast mode?", reply_markup=kb)
 
     if code in ("BCALL", "BCACT"):
         STATE[uid] = {"step": "broadcast", "mode": code}
         return await cq.message.edit_text("Send the broadcast message text.\n\nOr press Back.",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("â¬…ï¸ Back", callback_data="A:BC")]]))
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back", callback_data="A:BC")]]))
 
     # ----- Payouts -----
     if code == "PAYOUTS":
@@ -600,8 +600,8 @@ async def admin_callbacks(client: Client, cq: CallbackQuery):
         buttons = []
         for r in rows:
             buttons.append([InlineKeyboardButton(f"#{r['id']} {get_setting('CURRENCY')}{r['amount']} | {r['upi']}", callback_data=f"A:WD_VIEW|{r['id']}")])
-        buttons.append([InlineKeyboardButton("â¬…ï¸ Back", callback_data="A:BACK")])
-        return await cq.message.edit_text("ðŸ’¸ <b>Pending Withdrawals</b>", reply_markup=InlineKeyboardMarkup(buttons))
+        buttons.append([InlineKeyboardButton("⬅️ Back", callback_data="A:BACK")])
+        return await cq.message.edit_text("💸 <b>Pending Withdrawals</b>", reply_markup=InlineKeyboardMarkup(buttons))
 
     if code.startswith("WD_VIEW|"):
         wid = int(code.split("|",1)[1])
@@ -611,9 +611,9 @@ async def admin_callbacks(client: Client, cq: CallbackQuery):
         if not r:
             return await cq.answer("Not found.", show_alert=True)
         kb = InlineKeyboardMarkup([
-            [InlineKeyboardButton("âœ… Approve", callback_data=f"A:WD_OK|{wid}")],
-            [InlineKeyboardButton("âŒ Reject", callback_data=f"A:WD_REJ|{wid}")],
-            [InlineKeyboardButton("â¬…ï¸ Back", callback_data="A:PAYOUTS")]
+            [InlineKeyboardButton("✅ Approve", callback_data=f"A:WD_OK|{wid}")],
+            [InlineKeyboardButton("❌ Reject", callback_data=f"A:WD_REJ|{wid}")],
+            [InlineKeyboardButton("⬅️ Back", callback_data="A:PAYOUTS")]
         ])
         text = (f"ID: #{r['id']}\nUser: <a href='tg://user?id={r['user_id']}'>{r['user_id']}</a>\n"
                 f"Amount: {get_setting('CURRENCY')}{r['amount']:.2f}\nUPI: <code>{r['upi']}</code>\nStatus: {r['status']}")
@@ -634,24 +634,24 @@ async def admin_callbacks(client: Client, cq: CallbackQuery):
     # ----- Ban/Unban -----
     if code == "BANSET":
         kb = InlineKeyboardMarkup([
-            [InlineKeyboardButton("ðŸš« Ban User", callback_data="A:BAN")],
-            [InlineKeyboardButton("âœ… Unban User", callback_data="A:UNBAN")],
-            [InlineKeyboardButton("â¬…ï¸ Back", callback_data="A:BACK")]
+            [InlineKeyboardButton("🚫 Ban User", callback_data="A:BAN")],
+            [InlineKeyboardButton("✅ Unban User", callback_data="A:UNBAN")],
+            [InlineKeyboardButton("⬅️ Back", callback_data="A:BACK")]
         ])
         return await cq.message.edit_text("Ban/Unban users.", reply_markup=kb)
 
     if code in ("BAN", "UNBAN"):
         STATE[uid] = {"step": "ban" if code=="BAN" else "unban"}
-        return await cq.message.edit_text("Send user ID.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("â¬…ï¸ Back", callback_data="A:BANSET")]]))
+        return await cq.message.edit_text("Send user ID.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back", callback_data="A:BANSET")]]))
 
     # ----- Balance ops -----
     if code == "BALSET":
         kb = InlineKeyboardMarkup([
-            [InlineKeyboardButton("âž• Add Balance", callback_data="A:BALADD")],
-            [InlineKeyboardButton("âž– Remove Balance", callback_data="A:BALREM")],
-            [InlineKeyboardButton("ðŸ§¹ Reset Balance", callback_data="A:BALRST")],
-            [InlineKeyboardButton("ðŸŽ Reset Bonus Flag", callback_data="A:BONUSRST")],
-            [InlineKeyboardButton("â¬…ï¸ Back", callback_data="A:BACK")]
+            [InlineKeyboardButton("➕ Add Balance", callback_data="A:BALADD")],
+            [InlineKeyboardButton("➖ Remove Balance", callback_data="A:BALREM")],
+            [InlineKeyboardButton("🧹 Reset Balance", callback_data="A:BALRST")],
+            [InlineKeyboardButton("🎁 Reset Bonus Flag", callback_data="A:BONUSRST")],
+            [InlineKeyboardButton("⬅️ Back", callback_data="A:BACK")]
         ])
         return await cq.message.edit_text("Balance operations.", reply_markup=kb)
 
@@ -663,19 +663,19 @@ async def admin_callbacks(client: Client, cq: CallbackQuery):
             "BALRST": "Send: user_id",
             "BONUSRST": "Send: user_id (clear daily bonus claimed for today)"
         }[code]
-        return await cq.message.edit_text(prompt, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("â¬…ï¸ Back", callback_data="A:BALSET")]]))
+        return await cq.message.edit_text(prompt, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back", callback_data="A:BALSET")]]))
 
     # ----- Lookup -----
     if code == "LOOKUP":
         STATE[uid] = {"step": "lookup"}
-        return await cq.message.edit_text("Send user ID to lookup.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("â¬…ï¸ Back", callback_data="A:BACK")]]))
+        return await cq.message.edit_text("Send user ID to lookup.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back", callback_data="A:BACK")]]))
 
     # ----- Export -----
     if code == "EXPORT":
         kb = InlineKeyboardMarkup([
-            [InlineKeyboardButton("ðŸ“„ Users (TXT)", callback_data="A:EX_USERS")],
-            [InlineKeyboardButton("ðŸ“Š Withdrawals (CSV)", callback_data="A:EX_WD")],
-            [InlineKeyboardButton("â¬…ï¸ Back", callback_data="A:BACK")]
+            [InlineKeyboardButton("📄 Users (TXT)", callback_data="A:EX_USERS")],
+            [InlineKeyboardButton("📊 Withdrawals (CSV)", callback_data="A:EX_WD")],
+            [InlineKeyboardButton("⬅️ Back", callback_data="A:BACK")]
         ])
         return await cq.message.edit_text("Choose export type.", reply_markup=kb)
 
@@ -692,8 +692,8 @@ async def admin_callbacks(client: Client, cq: CallbackQuery):
         if uid != OWNER_ID:
             return await cq.answer("Owner only.", show_alert=True)
         kb = InlineKeyboardMarkup([
-            [InlineKeyboardButton("ðŸ—‚ DB Backup", callback_data="A:BK_DB")],
-            [InlineKeyboardButton("â¬…ï¸ Back", callback_data="A:BACK")]
+            [InlineKeyboardButton("🗂 DB Backup", callback_data="A:BK_DB")],
+            [InlineKeyboardButton("⬅️ Back", callback_data="A:BACK")]
         ])
         return await cq.message.edit_text("Owner tools.", reply_markup=kb)
 
@@ -720,7 +720,7 @@ async def admin_text_router(client: Client, m: Message):
         except ValueError:
             return await m.reply_text("Send numeric user ID.")
         ok = add_admin(new_uid)
-        return await m.reply_text("âœ… Added." if ok else "Already admin or invalid.")
+        return await m.reply_text("✅ Added." if ok else "Already admin or invalid.")
 
     if st.get("step") == "rem_admin":
         try:
@@ -728,25 +728,25 @@ async def admin_text_router(client: Client, m: Message):
         except ValueError:
             return await m.reply_text("Send numeric user ID.")
         ok = remove_admin(rem_uid)
-        return await m.reply_text("âœ… Removed." if ok else "Not an admin.")
+        return await m.reply_text("✅ Removed." if ok else "Not an admin.")
 
     # channels
     if st.get("step") == "add_channel":
         ok = add_channel(m.text.strip())
-        return await m.reply_text("âœ… Channel added." if ok else "Could not add (maybe duplicate).")
+        return await m.reply_text("✅ Channel added." if ok else "Could not add (maybe duplicate).")
 
     # settings
     if st.get("step") == "set_value":
         key = st.get("key", "")
         set_setting(key, m.text)
-        return await m.reply_text(f"âœ… {key} updated.")
+        return await m.reply_text(f"✅ {key} updated.")
 
     # broadcast
     if st.get("step") == "broadcast":
         text = m.text
         mode = st.get("mode", "BCALL")
         await broadcast(text, active_only=(mode=="BCACT"))
-        return await m.reply_text("âœ… Broadcast queued.")
+        return await m.reply_text("✅ Broadcast queued.")
 
     # ban/unban
     if st.get("step") == "ban":
@@ -755,14 +755,14 @@ async def admin_text_router(client: Client, m: Message):
         except ValueError:
             return await m.reply_text("Send numeric user ID.")
         set_ban(target, True)
-        return await m.reply_text("ðŸš« User banned.")
+        return await m.reply_text("🚫 User banned.")
     if st.get("step") == "unban":
         try:
             target = int(m.text.strip())
         except ValueError:
             return await m.reply_text("Send numeric user ID.")
         set_ban(target, False)
-        return await m.reply_text("âœ… User unbanned.")
+        return await m.reply_text("✅ User unbanned.")
 
     # balance ops
     if st.get("step") == "baladd":
@@ -772,7 +772,7 @@ async def admin_text_router(client: Client, m: Message):
         except Exception:
             return await m.reply_text("Format: user_id amount")
         credit(tid, amt)
-        return await m.reply_text("âœ… Balance added.")
+        return await m.reply_text("✅ Balance added.")
     if st.get("step") == "balrem":
         try:
             tid, amt = m.text.strip().split()
@@ -780,7 +780,7 @@ async def admin_text_router(client: Client, m: Message):
         except Exception:
             return await m.reply_text("Format: user_id amount")
         ok = debit(tid, amt)
-        return await m.reply_text("âœ… Balance removed." if ok else "Insufficient balance.")
+        return await m.reply_text("✅ Balance removed." if ok else "Insufficient balance.")
     if st.get("step") == "balrst":
         try:
             tid = int(m.text.strip())
@@ -789,7 +789,7 @@ async def admin_text_router(client: Client, m: Message):
         con = db(); cur = con.cursor()
         cur.execute("UPDATE users SET balance=0 WHERE user_id=?", (tid,))
         con.commit(); con.close()
-        return await m.reply_text("ðŸ§¹ Balance reset.")
+        return await m.reply_text("🧹 Balance reset.")
     if st.get("step") == "bonusrst":
         try:
             tid = int(m.text.strip())
@@ -799,7 +799,7 @@ async def admin_text_router(client: Client, m: Message):
         con = db(); cur = con.cursor()
         cur.execute("UPDATE users SET last_bonus_date=NULL WHERE user_id=?", (tid,))
         con.commit(); con.close()
-        return await m.reply_text("ðŸŽ Daily bonus reset for user.")
+        return await m.reply_text("🎁 Daily bonus reset for user.")
 
     # lookup
     if st.get("step") == "lookup":
@@ -864,7 +864,7 @@ async def finalize_withdrawal(wid: int, approve: bool):
             cur.execute("UPDATE withdrawals SET status='approved' WHERE id=?", (wid,))
             con.commit(); con.close()
             try:
-                await app.send_message(r["user_id"], f"âœ… Withdrawal approved for {get_setting('CURRENCY')}{float(r['amount']):.2f}. Payment processing.")
+                await app.send_message(r["user_id"], f"✅ Withdrawal approved for {get_setting('CURRENCY')}{float(r['amount']):.2f}. Payment processing.")
             except Exception:
                 pass
             return
@@ -874,7 +874,7 @@ async def finalize_withdrawal(wid: int, approve: bool):
     cur.execute("UPDATE withdrawals SET status='rejected' WHERE id=?", (wid,))
     con.commit(); con.close()
     try:
-        await app.send_message(r["user_id"], "âŒ Withdrawal rejected (insufficient balance or other issue).")
+        await app.send_message(r["user_id"], "❌ Withdrawal rejected (insufficient balance or other issue).")
     except Exception:
         pass
 
