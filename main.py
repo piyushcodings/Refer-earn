@@ -488,12 +488,16 @@ async def user_text_router(client: Client, m: Message):
 def admin_home():
     return ("<b>Admin Panel</b>\nUse the buttons below."), admin_menu()
 
-@app.on_message(filters.command("admin"))
-async def admin_cmd(client: Client, m: Message):
-    if not is_admin(m.from_user.id):
-        return await m.reply_text("Not authorized.")
-    await m.reply_text(*admin_home())
+@app.on_message(filters.command(["admin"]) & filters.private)
+async def admin_cmd(client: Client, message: Message):
+    if not is_admin(message.from_user.id):
+        return await message.reply_text("❌ Not authorized.")
 
+    await message.reply_text(
+        "🛠 *Admin Panel*",
+        reply_markup=admin_menu(),
+        parse_mode=enums.ParseMode.MARKDOWN
+    )
 @app.on_callback_query(filters.regex(r"^A:"))
 async def admin_callbacks(client: Client, cq: CallbackQuery):
     uid = cq.from_user.id
