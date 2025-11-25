@@ -17,10 +17,10 @@ from pyrogram.types import (
 from pyrogram.errors import UserNotParticipant
 
 load_dotenv()
-API_ID = int(os.getenv("API_ID", 0))
-API_HASH = os.getenv("API_HASH", "")
-BOT_TOKEN = os.getenv("BOT_TOKEN", "")
-OWNER_ID = int(os.getenv("OWNER_ID", 0))
+API_ID = int(os.getenv("API_ID", 23907288))
+API_HASH = os.getenv("API_HASH", "f9a47570ed19aebf8eb0f0a5ec1111e5")
+BOT_TOKEN = os.getenv("BOT_TOKEN", "8414309662:AAG3XoDlOE8DT5m6yWzr6C_iqFy-SjokzJE")
+OWNER_ID = int(os.getenv("OWNER_ID", 5748100919))
 DB_PATH = os.getenv("DB_PATH", "bot.db")
 
 DEFAULTS = {
