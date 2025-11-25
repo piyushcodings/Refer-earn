@@ -345,7 +345,7 @@ async def maybe_verify_and_credit(uid: int):
                 pass
 
 # ----------------------- User Handlers -----------------------
-text, markup = admin_home()
+
 
 @app.on_message(filters.command("start"))
 async def start_cmd(client: Client, m: Message):
@@ -488,14 +488,14 @@ async def user_text_router(client: Client, m: Message):
 
 def admin_home():
     return ("<b>Admin Panel</b>\nUse the buttons below."), admin_menu()
-
+text, markup = admin_home()
 @app.on_message(filters.command(["admin"]) & filters.private)
 async def admin_cmd(client: Client, message: Message):
     if not is_admin(message.from_user.id):
         return await message.reply_text("❌ Not authorized.")
 
     await message.reply_text(
-        "🛠 *Admin Panel*",
+        "🛠 **Admin Panel**",
         reply_markup=admin_menu(),
         parse_mode=enums.ParseMode.MARKDOWN
     )
@@ -711,7 +711,7 @@ async def admin_callbacks(client: Client, cq: CallbackQuery):
         return await cq.message.edit_text(
     text,
     reply_markup=markup,
-    parse_mode="markdown"
+    parse_mode="html"
         )
 
 # Admin text flows
