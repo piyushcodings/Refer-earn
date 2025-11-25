@@ -56,7 +56,7 @@ OWNER_ID = int(os.getenv("OWNER_ID", 5748100919))
 DB_PATH = os.getenv("DB_PATH", "bot.db")
 
 DEFAULTS = {
-    "DAILY_BONUS": ",
+    "DAILY_BONUS": "0.5",
     "REFERRAL_BONUS": "1",
     "MIN_WITHDRAW": "50",
     "CURRENCY": "₹",
