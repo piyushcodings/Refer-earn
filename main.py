@@ -345,6 +345,7 @@ async def maybe_verify_and_credit(uid: int):
                 pass
 
 # ----------------------- User Handlers -----------------------
+text, markup = admin_home()
 
 @app.on_message(filters.command("start"))
 async def start_cmd(client: Client, m: Message):
@@ -707,7 +708,11 @@ async def admin_callbacks(client: Client, cq: CallbackQuery):
         return await cq.message.reply_document(DB_PATH, caption="DB backup")
 
     if code == "BACK":
-        return await cq.message.edit_text(*admin_home())
+        return await cq.message.edit_text(
+    text,
+    reply_markup=markup,
+    parse_mode="markdown"
+        )
 
 # Admin text flows
 @app.on_message(filters.text & filters.user(lambda _, __, m: is_admin(m.from_user.id)))
