@@ -632,10 +632,18 @@ async def admin_callbacks(client: Client, cq: CallbackQuery):
         return await cq.message.edit_text(text, reply_markup=kb)
 
 # Admin text flows (correct: filters.create with is_admin)
-@app.on_message(filters.text & filters.create(lambda _, __, m: is_admin(m.from_user.id)))
+@app.on_message(filters.text)
 async def admin_text_router(client: Client, m: Message):
     uid = m.from_user.id
-    st = STATE.get(uid)
+
+    # if admin + in STATE => process admin input
+    if is_admin(uid) and uid in STATE:
+
+        st = STATE[uid]
+        step = st.get("step")
+
+        # (then your existing admin logic continues…)
+    
     if not st:
         return
 
