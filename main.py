@@ -718,8 +718,7 @@ async def admin_callbacks(client: Client, cq: CallbackQuery):
 async def admin_text_router(client: Client, m: Message):
     uid = m.from_user.id
 
-    if uid not in STATE:
-        return
+    print("Activated")
 
     st = STATE[uid]
     step = st.get("step")
