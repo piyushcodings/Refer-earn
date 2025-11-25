@@ -1,38 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Advanced Refer & Earn Telegram Bot (Pyrogram) — V2
---------------------------------------------------
-User menu = NORMAL keyboard (as requested)
-Admin panel = Inline keyboard
-
-User features:
-- Normal keyboard:
-    💰 Balance        🎁 Daily Bonus
-    👥 Invite          💵 Withdraw
-                  📢 Support
-- Must-join channels gate (cannot use bot until joined)
-- Daily bonus (default ₹1, once per day)
-- Referral system:
-    * Referral bonus ONLY when the referred user joins all required channels (verified)
-    * Anti-fake: if verified user later leaves a required channel, the bot blocks actions until they rejoin
-- Withdraw request: user enters amount + UPI; admins approve/reject
-- Support button shows a custom message (choice 3)
-
-Admin features (inline panel via /admin):
-- Admins: add/remove/list
-- Channels: add/remove/list
-- Maintenance ON/OFF
-- Settings editor: DAILY_BONUS, REFERRAL_BONUS, MIN_WITHDRAW, CURRENCY, WELCOME_TEXT
-- Payout manager (approve/reject withdrawals)
-- Broadcast (all or active-only users)
-- Ban/Unban users
-- Add/Remove balance; Reset balance; Reset daily bonus flag
-- Lookup user (full profile)
-- Export users (TXT) & withdrawals (CSV)
-- Owner-only DB backup (export file)
-
-Stack: Python 3.10+, Pyrogram 2.x, SQLite3, python-dotenv
+RupeeRocket - Refer & Earn Telegram Bot (final, fixed)
 """
 import os
 import sqlite3
@@ -47,28 +16,26 @@ from pyrogram.types import (
 )
 from pyrogram.errors import UserNotParticipant
 
-# --------------------------- Config ---------------------------
 load_dotenv()
-API_ID = int(os.getenv("API_ID", 23907288))
-API_HASH = os.getenv("API_HASH", "f9a47570ed19aebf8eb0f0a5ec1111e5")
-BOT_TOKEN = os.getenv("BOT_TOKEN", "8414309662:AAG3XoDlOE8DT5m6yWzr6C_iqFy-SjokzJE")
-OWNER_ID = int(os.getenv("OWNER_ID", 5748100919))
+API_ID = int(os.getenv("API_ID", 0))
+API_HASH = os.getenv("API_HASH", "")
+BOT_TOKEN = os.getenv("BOT_TOKEN", "")
+OWNER_ID = int(os.getenv("OWNER_ID", 0))
 DB_PATH = os.getenv("DB_PATH", "bot.db")
 
 DEFAULTS = {
-    "DAILY_BONUS": "0.5",
+    "DAILY_BONUS": "1",
     "REFERRAL_BONUS": "1",
     "MIN_WITHDRAW": "50",
     "CURRENCY": "₹",
-    "WELCOME_TEXT": "Welcome to Refer & Earn Bot! Earn by inviting friends.",
+    "WELCOME_TEXT": "Welcome to RupeeRocket! Earn by inviting friends.",
     "MAINTENANCE": "0",
-    "ACTIVE_DAYS": "30"   # days for "active users"
+    "ACTIVE_DAYS": "30"
 }
 
 STATE: Dict[int, Dict[str, str]] = {}
 
-# --------------------------- DB ---------------------------
-
+# ---------- DB ----------
 def db() -> sqlite3.Connection:
     con = sqlite3.connect(DB_PATH)
     con.row_factory = sqlite3.Row
@@ -83,8 +50,8 @@ def init_db():
             referrer_id INTEGER,
             balance REAL DEFAULT 0,
             last_bonus_date TEXT,
-            verified INTEGER DEFAULT 0,              -- joined all required channels at least once
-            referred_bonus_paid INTEGER DEFAULT 0,   -- has referrer received bonus
+            verified INTEGER DEFAULT 0,
+            referred_bonus_paid INTEGER DEFAULT 0,
             is_banned INTEGER DEFAULT 0,
             last_seen TEXT
         )
@@ -122,8 +89,7 @@ def init_db():
         cur.execute("INSERT OR IGNORE INTO admins(user_id) VALUES(?)", (OWNER_ID,))
     con.commit(); con.close()
 
-# --------------------------- Helpers ---------------------------
-
+# ---------- Helpers ----------
 def get_setting(key: str) -> str:
     con = db(); cur = con.cursor()
     cur.execute("SELECT value FROM settings WHERE key=?", (key,))
@@ -148,13 +114,10 @@ def add_user_if_absent(uid: int, ref: Optional[int]) -> Tuple[bool, Optional[int
     cur.execute("SELECT referrer_id FROM users WHERE user_id=?", (uid,))
     row = cur.fetchone()
     if row:
-        # also update last_seen
         cur.execute("UPDATE users SET last_seen=? WHERE user_id=?", (datetime.utcnow().isoformat(), uid))
         con.commit(); con.close(); return False, row[0]
-    cur.execute(
-        "INSERT INTO users(user_id, joined_at, referrer_id, balance, last_seen) VALUES(?,?,?,?,?)",
-        (uid, datetime.utcnow().isoformat(), ref, 0.0, datetime.utcnow().isoformat())
-    )
+    cur.execute("INSERT INTO users(user_id, joined_at, referrer_id, balance, last_seen) VALUES(?,?,?,?,?)",
+                (uid, datetime.utcnow().isoformat(), ref, 0.0, datetime.utcnow().isoformat()))
     con.commit(); con.close()
     return True, ref
 
@@ -266,9 +229,9 @@ def set_ref_bonus_paid(uid: int):
     cur.execute("UPDATE users SET referred_bonus_paid=1 WHERE user_id=?", (uid,))
     con.commit(); con.close()
 
-# --------------------------- Bot ---------------------------
+# ---------- Bot ----------
 app = Client(
-    name="refer_earn_bot_v2",
+    name="rupeerocket_bot",
     api_id=API_ID,
     api_hash=API_HASH,
     bot_token=BOT_TOKEN,
@@ -321,17 +284,14 @@ async def send_join_prompt(chat_id: int):
     await app.send_message(chat_id, "Please join all channels to continue:", reply_markup=InlineKeyboardMarkup(rows))
 
 async def maybe_verify_and_credit(uid: int):
-    """If user now joined all channels and was not verified: set verified and pay referrer if needed."""
     user = get_user(uid)
     if not user:
         return
     if user["verified"] == 1:
         return
-    # verify
     need = await ensure_joined(uid)
     if not need:
         set_verified(uid)
-        # referral bonus only once, when verifying for the first time
         if user["referrer_id"] and user["referred_bonus_paid"] == 0:
             try:
                 amt = float(get_setting("REFERRAL_BONUS"))
@@ -344,9 +304,7 @@ async def maybe_verify_and_credit(uid: int):
             except Exception:
                 pass
 
-# ----------------------- User Handlers -----------------------
-
-
+# ---------- User Handlers ----------
 @app.on_message(filters.command("start"))
 async def start_cmd(client: Client, m: Message):
     args = m.text.split(maxsplit=1)
@@ -365,16 +323,13 @@ async def start_cmd(client: Client, m: Message):
     if is_banned(m.from_user.id):
         return await m.reply_text("🚫 You are banned from using this bot.")
 
-    # On /start show keyboard and gate if needed
     need = await ensure_joined(m.from_user.id)
     welcome = get_setting("WELCOME_TEXT")
     if need:
         await m.reply_text(f"{welcome}\n\nYou must join required channels first.", reply_markup=user_keyboard())
         return await send_join_prompt(m.chat.id)
 
-    # If first time verification happens here, pay referrer
     await maybe_verify_and_credit(m.from_user.id)
-
     await m.reply_text(f"{welcome}\n\nUse the menu below.", reply_markup=user_keyboard())
 
 @app.on_callback_query(filters.regex(r"^U:JOINED$"))
@@ -389,7 +344,7 @@ async def joined_confirm(client: Client, cq: CallbackQuery):
     await cq.answer("All set!", show_alert=True)
     await cq.message.reply_text("✅ Thanks for joining. You can use the menu now.", reply_markup=user_keyboard())
 
-# Unified user text router (NORMAL keyboard labels)
+# Unified user text router
 USER_BAL = "💰 Balance"
 USER_BONUS = "🎁 Daily Bonus"
 USER_INVITE = "👥 Invite"
@@ -400,20 +355,16 @@ USER_SUPPORT = "📢 Support"
 async def user_text_router(client: Client, m: Message):
     uid = m.from_user.id
     mark_seen(uid)
-
-    # maintenance & ban
     if get_setting("MAINTENANCE") == "1" and not is_admin(uid):
         return
     if is_banned(uid):
         return await m.reply_text("🚫 You are banned from using this bot.")
 
-    # channel gate on each action
     need = await ensure_joined(uid)
     if need:
         await m.reply_text("Please join required channels first.", reply_markup=user_keyboard())
         return await send_join_prompt(m.chat.id)
 
-    # verification & referral payout if first time
     await maybe_verify_and_credit(uid)
 
     text = m.text.strip()
@@ -431,32 +382,20 @@ async def user_text_router(client: Client, m: Message):
         credit(uid, amt)
         set_last_bonus_today(uid)
         bal = get_balance(uid)
-        return await m.reply_text(
-            f"🎁 Daily bonus credited: {get_setting('CURRENCY')}{amt:.2f}\nCurrent balance: {get_setting('CURRENCY')}{bal:.2f}",
-            reply_markup=user_keyboard()
-        )
+        return await m.reply_text(f"🎁 Daily bonus credited: {get_setting('CURRENCY')}{amt:.2f}\nCurrent balance: {get_setting('CURRENCY')}{bal:.2f}", reply_markup=user_keyboard())
 
     if text == USER_INVITE:
         bot = await app.get_me()
         link = f"https://t.me/{bot.username}?start={uid}"
-        return await m.reply_text(
-            "👥 <b>Invite & Earn</b>\n"
-            f"Share your link: <code>{link}</code>\n"
-            f"Referral bonus (on verification): {get_setting('CURRENCY')}{float(get_setting('REFERRAL_BONUS')):.2f}",
-            reply_markup=user_keyboard()
-        )
+        return await m.reply_text(f"👥 <b>Invite & Earn</b>\nShare your link: <code>{link}</code>\nReferral bonus (on verification): {get_setting('CURRENCY')}{float(get_setting('REFERRAL_BONUS')):.2f}", reply_markup=user_keyboard())
 
     if text == USER_WITHDRAW:
         STATE[uid] = {"step": "wd_amount"}
-        return await m.reply_text(
-            f"💳 <b>Withdrawal</b>\nMinimum: {get_setting('CURRENCY')}{float(get_setting('MIN_WITHDRAW')):.2f}\nEnter the amount you want to withdraw:",
-            reply_markup=user_keyboard()
-        )
+        return await m.reply_text(f"💳 <b>Withdrawal</b>\nMinimum: {get_setting('CURRENCY')}{float(get_setting('MIN_WITHDRAW')):.2f}\nEnter the amount you want to withdraw:", reply_markup=user_keyboard())
 
     if text == USER_SUPPORT:
         return await m.reply_text("📢 Support: Please wait, support will contact you.", reply_markup=user_keyboard())
 
-    # Withdrawal steps
     st = STATE.get(uid)
     if st and st.get("step") == "wd_amount":
         try:
@@ -475,39 +414,30 @@ async def user_text_router(client: Client, m: Message):
         except Exception:
             amt = 0.0
         con = db(); cur = con.cursor()
-        cur.execute(
-            "INSERT INTO withdrawals(user_id, amount, upi, status, created_at) VALUES(?,?,?,?,?)",
-            (uid, amt, upi, "pending", datetime.utcnow().isoformat())
-        )
+        cur.execute("INSERT INTO withdrawals(user_id, amount, upi, status, created_at) VALUES(?,?,?,?,?)", (uid, amt, upi, "pending", datetime.utcnow().isoformat()))
         con.commit(); con.close()
         STATE.pop(uid, None)
         await notify_admins(f"🆕 Withdrawal Request\nUser: <a href='tg://user?id={uid}'>{uid}</a>\nAmount: {get_setting('CURRENCY')}{amt:.2f}\nUPI: <code>{upi}</code>")
         return await m.reply_text("✅ Request submitted. Admins will review soon.", reply_markup=user_keyboard())
 
-# ----------------------- Admin Panel -----------------------
-
+# ---------- Admin Panel ----------
 def admin_home():
-    return ("<b>Admin Panel</b>\nUse the buttons below."), admin_menu()
+    return "<b>Admin Panel</b>\nUse the buttons below.", admin_menu()
 
-@app.on_message(filters.command(["admin"]) & filters.private)
-async def admin_cmd(client: Client, message: Message):
-    if not is_admin(message.from_user.id):
-        return await message.reply_text("❌ Not authorized.")
+@app.on_message(filters.command("admin"))
+async def admin_cmd(client: Client, m: Message):
+    if not is_admin(m.from_user.id):
+        return await m.reply_text("Not authorized.")
+    text, kb = admin_home()
+    await m.reply_text(text, reply_markup=kb)
 
-    await message.reply_text(
-        "🛠 **Admin Panel**",
-        reply_markup=admin_menu(),
-        parse_mode=enums.ParseMode.MARKDOWN
-    )
 @app.on_callback_query(filters.regex(r"^A:"))
 async def admin_callbacks(client: Client, cq: CallbackQuery):
     uid = cq.from_user.id
     if not is_admin(uid):
         return await cq.answer("Not authorized.", show_alert=True)
-
     code = cq.data.split(":", 1)[1]
 
-    # ----- Admins -----
     if code == "ADMINS":
         STATE[uid] = {"step": "admin_menu"}
         kb = InlineKeyboardMarkup([
@@ -519,22 +449,16 @@ async def admin_callbacks(client: Client, cq: CallbackQuery):
 
     if code == "ADM_ADD":
         STATE[uid] = {"step": "add_admin"}
-        return await cq.message.edit_text("Send numeric Telegram user ID to add as admin.\n\nOr press Back.",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back", callback_data="A:ADMINS")]]))
+        return await cq.message.edit_text("Send numeric Telegram user ID to add as admin.\n\nOr press Back.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back", callback_data="A:ADMINS")]]))
 
     if code == "ADM_REM":
         STATE[uid] = {"step": "rem_admin"}
-        return await cq.message.edit_text("Send numeric Telegram user ID to remove from admins.\n\nOr press Back.",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back", callback_data="A:ADMINS")]]))
+        return await cq.message.edit_text("Send numeric Telegram user ID to remove from admins.\n\nOr press Back.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back", callback_data="A:ADMINS")]]))
 
-    # ----- Channels -----
     if code == "CHANS":
         chans = list_channels()
         rows = [[InlineKeyboardButton(ch, callback_data=f"A:CHAN_DEL|{ch}") ] for ch in chans] if chans else []
-        rows += [
-            [InlineKeyboardButton("➕ Add Channel", callback_data="A:CHAN_ADD")],
-            [InlineKeyboardButton("⬅️ Back", callback_data="A:BACK")]
-        ]
+        rows += [[InlineKeyboardButton("➕ Add Channel", callback_data="A:CHAN_ADD")],[InlineKeyboardButton("⬅️ Back", callback_data="A:BACK")]]
         return await cq.message.edit_text("#️⃣ <b>Required Channels</b>", reply_markup=InlineKeyboardMarkup(rows))
 
     if code.startswith("CHAN_DEL|"):
@@ -545,10 +469,8 @@ async def admin_callbacks(client: Client, cq: CallbackQuery):
 
     if code == "CHAN_ADD":
         STATE[uid] = {"step": "add_channel"}
-        return await cq.message.edit_text("Send channel @username or https://t.me/ link to require.\n\nOr press Back.",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back", callback_data="A:CHANS")]]))
+        return await cq.message.edit_text("Send channel @username or https://t.me/ link to require.\n\nOr press Back.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back", callback_data="A:CHANS")]]))
 
-    # ----- Settings -----
     if code == "SET":
         kb = InlineKeyboardMarkup([
             [InlineKeyboardButton("DAILY_BONUS", callback_data="A:SETK|DAILY_BONUS")],
@@ -559,43 +481,28 @@ async def admin_callbacks(client: Client, cq: CallbackQuery):
             [InlineKeyboardButton("ACTIVE_DAYS", callback_data="A:SETK|ACTIVE_DAYS")],
             [InlineKeyboardButton("⬅️ Back", callback_data="A:BACK")]
         ])
-        current = (f"<b>Settings</b>\n"
-                   f"DAILY_BONUS: {get_setting('DAILY_BONUS')}\n"
-                   f"REFERRAL_BONUS: {get_setting('REFERRAL_BONUS')}\n"
-                   f"MIN_WITHDRAW: {get_setting('MIN_WITHDRAW')}\n"
-                   f"CURRENCY: {get_setting('CURRENCY')}\n"
-                   f"ACTIVE_DAYS: {get_setting('ACTIVE_DAYS')}\n"
-                   f"WELCOME_TEXT: {get_setting('WELCOME_TEXT')[:80]}...")
+        current = (f"<b>Settings</b>\nDAILY_BONUS: {get_setting('DAILY_BONUS')}\nREFERRAL_BONUS: {get_setting('REFERRAL_BONUS')}\nMIN_WITHDRAW: {get_setting('MIN_WITHDRAW')}\nCURRENCY: {get_setting('CURRENCY')}\nACTIVE_DAYS: {get_setting('ACTIVE_DAYS')}\nWELCOME_TEXT: {get_setting('WELCOME_TEXT')[:80]}...")
         return await cq.message.edit_text(current, reply_markup=kb)
 
     if code.startswith("SETK|"):
         key = code.split("|",1)[1]
         STATE[uid] = {"step": "set_value", "key": key}
-        return await cq.message.edit_text(f"Send new value for <b>{key}</b>.\n\nOr press Back.",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back", callback_data="A:SET")]]))
+        return await cq.message.edit_text(f"Send new value for <b>{key}</b>.\n\nOr press Back.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back", callback_data="A:SET")]]))
 
-    # ----- Maintenance -----
     if code == "MAINT":
         current = get_setting("MAINTENANCE")
         new = "0" if current == "1" else "1"
         set_setting("MAINTENANCE", new)
         return await cq.message.edit_text(f"🛠 Maintenance is now {'ON' if new=='1' else 'OFF'}.", reply_markup=admin_menu())
 
-    # ----- Broadcast -----
     if code == "BC":
-        kb = InlineKeyboardMarkup([
-            [InlineKeyboardButton("Send to ALL", callback_data="A:BCALL")],
-            [InlineKeyboardButton("Send to ACTIVE", callback_data="A:BCACT")],
-            [InlineKeyboardButton("⬅️ Back", callback_data="A:BACK")]
-        ])
+        kb = InlineKeyboardMarkup([[InlineKeyboardButton("Send to ALL", callback_data="A:BCALL")],[InlineKeyboardButton("Send to ACTIVE", callback_data="A:BCACT")],[InlineKeyboardButton("⬅️ Back", callback_data="A:BACK")]])
         return await cq.message.edit_text("📣 Broadcast mode?", reply_markup=kb)
 
     if code in ("BCALL", "BCACT"):
         STATE[uid] = {"step": "broadcast", "mode": code}
-        return await cq.message.edit_text("Send the broadcast message text.\n\nOr press Back.",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back", callback_data="A:BC")]]))
+        return await cq.message.edit_text("Send the broadcast message text.\n\nOr press Back.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back", callback_data="A:BC")]]))
 
-    # ----- Payouts -----
     if code == "PAYOUTS":
         con = db(); cur = con.cursor()
         cur.execute("SELECT id,user_id,amount,upi FROM withdrawals WHERE status='pending' ORDER BY id DESC LIMIT 10")
@@ -620,8 +527,7 @@ async def admin_callbacks(client: Client, cq: CallbackQuery):
             [InlineKeyboardButton("❌ Reject", callback_data=f"A:WD_REJ|{wid}")],
             [InlineKeyboardButton("⬅️ Back", callback_data="A:PAYOUTS")]
         ])
-        text = (f"ID: #{r['id']}\nUser: <a href='tg://user?id={r['user_id']}'>{r['user_id']}</a>\n"
-                f"Amount: {get_setting('CURRENCY')}{r['amount']:.2f}\nUPI: <code>{r['upi']}</code>\nStatus: {r['status']}")
+        text = (f"ID: #{r['id']}\nUser: <a href='tg://user?id={r['user_id']}'>{r['user_id']}</a>\nAmount: {get_setting('CURRENCY')}{r['amount']:.2f}\nUPI: <code>{r['upi']}</code>\nStatus: {r['status']}")
         return await cq.message.edit_text(text, reply_markup=kb)
 
     if code.startswith("WD_OK|"):
@@ -636,52 +542,29 @@ async def admin_callbacks(client: Client, cq: CallbackQuery):
         await cq.answer("Rejected.")
         return await admin_callbacks(client, CallbackQuery(id=cq.id, from_user=cq.from_user, chat_instance=cq.chat_instance, data="A:PAYOUTS", message=cq.message))
 
-    # ----- Ban/Unban -----
     if code == "BANSET":
-        kb = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🚫 Ban User", callback_data="A:BAN")],
-            [InlineKeyboardButton("✅ Unban User", callback_data="A:UNBAN")],
-            [InlineKeyboardButton("⬅️ Back", callback_data="A:BACK")]
-        ])
+        kb = InlineKeyboardMarkup([[InlineKeyboardButton("🚫 Ban User", callback_data="A:BAN")],[InlineKeyboardButton("✅ Unban User", callback_data="A:UNBAN")],[InlineKeyboardButton("⬅️ Back", callback_data="A:BACK")]])
         return await cq.message.edit_text("Ban/Unban users.", reply_markup=kb)
 
     if code in ("BAN", "UNBAN"):
         STATE[uid] = {"step": "ban" if code=="BAN" else "unban"}
         return await cq.message.edit_text("Send user ID.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back", callback_data="A:BANSET")]]))
 
-    # ----- Balance ops -----
     if code == "BALSET":
-        kb = InlineKeyboardMarkup([
-            [InlineKeyboardButton("➕ Add Balance", callback_data="A:BALADD")],
-            [InlineKeyboardButton("➖ Remove Balance", callback_data="A:BALREM")],
-            [InlineKeyboardButton("🧹 Reset Balance", callback_data="A:BALRST")],
-            [InlineKeyboardButton("🎁 Reset Bonus Flag", callback_data="A:BONUSRST")],
-            [InlineKeyboardButton("⬅️ Back", callback_data="A:BACK")]
-        ])
+        kb = InlineKeyboardMarkup([[InlineKeyboardButton("➕ Add Balance", callback_data="A:BALADD")],[InlineKeyboardButton("➖ Remove Balance", callback_data="A:BALREM")],[InlineKeyboardButton("🧹 Reset Balance", callback_data="A:BALRST")],[InlineKeyboardButton("🎁 Reset Bonus Flag", callback_data="A:BONUSRST")],[InlineKeyboardButton("⬅️ Back", callback_data="A:BACK")]])
         return await cq.message.edit_text("Balance operations.", reply_markup=kb)
 
     if code in ("BALADD", "BALREM", "BALRST", "BONUSRST"):
         STATE[uid] = {"step": code.lower()}
-        prompt = {
-            "BALADD": "Send: user_id amount",
-            "BALREM": "Send: user_id amount",
-            "BALRST": "Send: user_id",
-            "BONUSRST": "Send: user_id (clear daily bonus claimed for today)"
-        }[code]
+        prompt = {"BALADD": "Send: user_id amount", "BALREM": "Send: user_id amount", "BALRST": "Send: user_id", "BONUSRST": "Send: user_id (clear daily bonus claimed for today)"}[code]
         return await cq.message.edit_text(prompt, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back", callback_data="A:BALSET")]]))
 
-    # ----- Lookup -----
     if code == "LOOKUP":
         STATE[uid] = {"step": "lookup"}
         return await cq.message.edit_text("Send user ID to lookup.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back", callback_data="A:BACK")]]))
 
-    # ----- Export -----
     if code == "EXPORT":
-        kb = InlineKeyboardMarkup([
-            [InlineKeyboardButton("📄 Users (TXT)", callback_data="A:EX_USERS")],
-            [InlineKeyboardButton("📊 Withdrawals (CSV)", callback_data="A:EX_WD")],
-            [InlineKeyboardButton("⬅️ Back", callback_data="A:BACK")]
-        ])
+        kb = InlineKeyboardMarkup([[InlineKeyboardButton("📄 Users (TXT)", callback_data="A:EX_USERS")],[InlineKeyboardButton("📊 Withdrawals (CSV)", callback_data="A:EX_WD")],[InlineKeyboardButton("⬅️ Back", callback_data="A:BACK")]])
         return await cq.message.edit_text("Choose export type.", reply_markup=kb)
 
     if code == "EX_USERS":
@@ -692,14 +575,10 @@ async def admin_callbacks(client: Client, cq: CallbackQuery):
         path = await export_withdrawals()
         return await cq.message.reply_document(path, caption="Withdrawals export")
 
-    # ----- Owner tools -----
     if code == "OWNER":
         if uid != OWNER_ID:
             return await cq.answer("Owner only.", show_alert=True)
-        kb = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🗂 DB Backup", callback_data="A:BK_DB")],
-            [InlineKeyboardButton("⬅️ Back", callback_data="A:BACK")]
-        ])
+        kb = InlineKeyboardMarkup([[InlineKeyboardButton("🗂 DB Backup", callback_data="A:BK_DB")],[InlineKeyboardButton("⬅️ Back", callback_data="A:BACK")]])
         return await cq.message.edit_text("Owner tools.", reply_markup=kb)
 
     if code == "BK_DB":
@@ -708,126 +587,130 @@ async def admin_callbacks(client: Client, cq: CallbackQuery):
         return await cq.message.reply_document(DB_PATH, caption="DB backup")
 
     if code == "BACK":
-        return await cq.message.edit_text('<b>Admin Panel</b>\nUse the buttons below.',
-    reply_markup=admin_menu(),
-    parse_mode=enums.ParseMode.HTML
-        )
+        text, kb = admin_home()
+        return await cq.message.edit_text(text, reply_markup=kb)
 
-# Admin text flows
+# Admin text flows (correct: filters.create with is_admin)
 @app.on_message(filters.text & filters.create(lambda _, __, m: is_admin(m.from_user.id)))
 async def admin_text_router(client: Client, m: Message):
     uid = m.from_user.id
+    st = STATE.get(uid)
+    if not st:
+        return
 
-    print("Activated")
-
-    st = STATE[uid]
     step = st.get("step")
-
-    # Settings value setter
     if step == "set_value":
-        key = st["key"]
+        key = st.get("key")
         set_setting(key, m.text.strip())
         STATE.pop(uid, None)
         return await m.reply_text(f"✅ {key} updated successfully.")
 
-    # Add admin
     if step == "add_admin":
         try:
             new_uid = int(m.text.strip())
-        except:
-            return await m.reply_text("❌ Invalid ID")
-        add_admin(new_uid)
+        except ValueError:
+            return await m.reply_text("Send numeric user ID.")
+        ok = add_admin(new_uid)
         STATE.pop(uid, None)
-        return await m.reply_text("✔ Admin added.")
+        return await m.reply_text("✅ Added." if ok else "Already admin or invalid.")
 
-    # Remove admin
     if step == "rem_admin":
         try:
             rem_uid = int(m.text.strip())
-        except:
-            return await m.reply_text("❌ Invalid ID")
-        remove_admin(rem_uid)
+        except ValueError:
+            return await m.reply_text("Send numeric user ID.")
+        ok = remove_admin(rem_uid)
         STATE.pop(uid, None)
-        return await m.reply_text("✔ Admin removed.")
+        return await m.reply_text("✅ Removed." if ok else "Not an admin.")
 
-    # Add channel
     if step == "add_channel":
-        add_channel(m.text.strip())
+        ok = add_channel(m.text.strip())
         STATE.pop(uid, None)
-        return await m.reply_text("✔ Channel added.")
+        return await m.reply_text("✅ Channel added." if ok else "Could not add (maybe duplicate).")
 
-    # Broadcast
     if step == "broadcast":
-        mode = st["mode"]
+        mode = st.get("mode", "BCALL")
         if mode == "BCALL":
             await broadcast(m.text)
         else:
             await broadcast(m.text, active_only=True)
         STATE.pop(uid, None)
-        return await m.reply_text("✔ Broadcast done.")
+        return await m.reply_text("✅ Broadcast queued.")
 
-    # Ban user
     if step == "ban":
-        set_ban(int(m.text.strip()), True)
+        try:
+            target = int(m.text.strip())
+        except ValueError:
+            return await m.reply_text("Send numeric user ID.")
+        set_ban(target, True)
         STATE.pop(uid, None)
         return await m.reply_text("🚫 User banned.")
 
-    # Unban user
     if step == "unban":
-        set_ban(int(m.text.strip()), False)
+        try:
+            target = int(m.text.strip())
+        except ValueError:
+            return await m.reply_text("Send numeric user ID.")
+        set_ban(target, False)
         STATE.pop(uid, None)
-        return await m.reply_text("✔ User unbanned.")
+        return await m.reply_text("✅ User unbanned.")
 
-    # Add balance
     if step == "baladd":
-        tid, amt = m.text.strip().split()
-        credit(int(tid), float(amt))
+        try:
+            tid, amt = m.text.strip().split()
+            tid = int(tid); amt = float(amt)
+        except Exception:
+            return await m.reply_text("Format: user_id amount")
+        credit(tid, amt)
         STATE.pop(uid, None)
-        return await m.reply_text("✔ Balance added.")
+        return await m.reply_text("✅ Balance added.")
 
-    # Remove balance
     if step == "balrem":
-        tid, amt = m.text.strip().split()
-        debit(int(tid), float(amt))
+        try:
+            tid, amt = m.text.strip().split()
+            tid = int(tid); amt = float(amt)
+        except Exception:
+            return await m.reply_text("Format: user_id amount")
+        ok = debit(tid, amt)
         STATE.pop(uid, None)
-        return await m.reply_text("✔ Balance removed.")
+        return await m.reply_text("✅ Balance removed." if ok else "Insufficient balance.")
 
-    # Reset balance
     if step == "balrst":
-        tid = int(m.text.strip())
+        try:
+            tid = int(m.text.strip())
+        except Exception:
+            return await m.reply_text("Send user_id")
         con = db(); cur = con.cursor()
         cur.execute("UPDATE users SET balance=0 WHERE user_id=?", (tid,))
         con.commit(); con.close()
         STATE.pop(uid, None)
-        return await m.reply_text("✔ Balance reset.")
+        return await m.reply_text("🧹 Balance reset.")
 
-    # Reset bonus
     if step == "bonusrst":
-        tid = int(m.text.strip())
+        try:
+            tid = int(m.text.strip())
+        except Exception:
+            return await m.reply_text("Send user_id")
         con = db(); cur = con.cursor()
         cur.execute("UPDATE users SET last_bonus_date=NULL WHERE user_id=?", (tid,))
         con.commit(); con.close()
         STATE.pop(uid, None)
-        return await m.reply_text("✔ Bonus reset.")
+        return await m.reply_text("🎁 Daily bonus reset for user.")
 
-    # Lookup user
     if step == "lookup":
-        tid = int(m.text.strip())
+        try:
+            tid = int(m.text.strip())
+        except Exception:
+            return await m.reply_text("Send user_id")
         u = get_user(tid)
         if not u:
-            return await m.reply_text("❌ User not found")
-        txt = f"""User Info:
-ID: {u['user_id']}
-Joined: {u['joined_at']}
-Referrer: {u['referrer_id']}
-Balance: {u['balance']}
-Verified: {u['verified']}
-Banned: {u['is_banned']}
-"""
+            STATE.pop(uid, None)
+            return await m.reply_text("Not found.")
+        text = (f"User: {u['user_id']}\nJoined: {u['joined_at']}\nReferrer: {u['referrer_id']}\nBalance: {get_setting('CURRENCY')}{float(u['balance']):.2f}\nVerified: {bool(u['verified'])}\nRef bonus paid: {bool(u['referred_bonus_paid'])}\nBanned: {bool(u['is_banned'])}\nLast seen: {u['last_seen']}")
         STATE.pop(uid, None)
-        return await m.reply_text(txt)
-# ----------------------- Admin Helpers -----------------------
+        return await m.reply_text(text)
 
+# ---------- Admin Helpers ----------
 async def notify_admins(text: str):
     con = db(); cur = con.cursor()
     cur.execute("SELECT user_id FROM admins")
@@ -862,7 +745,6 @@ async def finalize_withdrawal(wid: int, approve: bool):
     if not r or r["status"] != "pending":
         con.close(); return
     if approve:
-        # debit if balance sufficient
         cur.execute("SELECT COALESCE(balance,0) FROM users WHERE user_id=?", (r["user_id"],))
         bal = float(cur.fetchone()[0] or 0)
         if bal >= float(r["amount"]):
@@ -876,7 +758,6 @@ async def finalize_withdrawal(wid: int, approve: bool):
             return
         else:
             approve = False
-    # reject
     cur.execute("UPDATE withdrawals SET status='rejected' WHERE id=?", (wid,))
     con.commit(); con.close()
     try:
@@ -908,11 +789,10 @@ async def export_withdrawals() -> str:
             writer.writerow([r["id"], r["user_id"], r["amount"], r["upi"], r["status"], r["created_at"]])
     return path
 
-# --------------------------- Boot ---------------------------
-
+# ---------- Boot ----------
 if __name__ == "__main__":
     if not (API_ID and API_HASH and BOT_TOKEN and OWNER_ID):
         raise SystemExit("Please set API_ID, API_HASH, BOT_TOKEN, OWNER_ID in environment or .env")
     init_db()
-    print("Bot starting...")
+    print("RupeeRocket bot starting...")
     app.run()
