@@ -488,7 +488,7 @@ async def user_text_router(client: Client, m: Message):
 
 def admin_home():
     return ("<b>Admin Panel</b>\nUse the buttons below."), admin_menu()
-text, markup = admin_home()
+
 @app.on_message(filters.command(["admin"]) & filters.private)
 async def admin_cmd(client: Client, message: Message):
     if not is_admin(message.from_user.id):
@@ -708,10 +708,9 @@ async def admin_callbacks(client: Client, cq: CallbackQuery):
         return await cq.message.reply_document(DB_PATH, caption="DB backup")
 
     if code == "BACK":
-        return await cq.message.edit_text(
-    text,
-    reply_markup=markup,
-    parse_mode="html"
+        return await cq.message.edit_text('<b>Admin Panel</b>\nUse the buttons below.',
+    reply_markup=admin_menu(),
+    parse_mode=enums.ParseMode.HTML
         )
 
 # Admin text flows
