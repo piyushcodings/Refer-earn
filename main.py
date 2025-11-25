@@ -714,120 +714,119 @@ async def admin_callbacks(client: Client, cq: CallbackQuery):
         )
 
 # Admin text flows
-@app.on_message(filters.text & filters.user(lambda _, __, m: is_admin(m.from_user.id)))
+@app.on_message(filters.text & filters.user(is_admin))
 async def admin_text_router(client: Client, m: Message):
     uid = m.from_user.id
-    st = STATE.get(uid)
-    if not st:
+
+    if uid not in STATE:
         return
 
-    # add/remove admin
-    if st.get("step") == "add_admin":
+    st = STATE[uid]
+    step = st.get("step")
+
+    # Settings value setter
+    if step == "set_value":
+        key = st["key"]
+        set_setting(key, m.text.strip())
+        STATE.pop(uid, None)
+        return await m.reply_text(f"✅ {key} updated successfully.")
+
+    # Add admin
+    if step == "add_admin":
         try:
             new_uid = int(m.text.strip())
-        except ValueError:
-            return await m.reply_text("Send numeric user ID.")
-        ok = add_admin(new_uid)
-        return await m.reply_text("✅ Added." if ok else "Already admin or invalid.")
+        except:
+            return await m.reply_text("❌ Invalid ID")
+        add_admin(new_uid)
+        STATE.pop(uid, None)
+        return await m.reply_text("✔ Admin added.")
 
-    if st.get("step") == "rem_admin":
+    # Remove admin
+    if step == "rem_admin":
         try:
             rem_uid = int(m.text.strip())
-        except ValueError:
-            return await m.reply_text("Send numeric user ID.")
-        ok = remove_admin(rem_uid)
-        return await m.reply_text("✅ Removed." if ok else "Not an admin.")
+        except:
+            return await m.reply_text("❌ Invalid ID")
+        remove_admin(rem_uid)
+        STATE.pop(uid, None)
+        return await m.reply_text("✔ Admin removed.")
 
-    # channels
-    if st.get("step") == "add_channel":
-        ok = add_channel(m.text.strip())
-        return await m.reply_text("✅ Channel added." if ok else "Could not add (maybe duplicate).")
+    # Add channel
+    if step == "add_channel":
+        add_channel(m.text.strip())
+        STATE.pop(uid, None)
+        return await m.reply_text("✔ Channel added.")
 
-    # settings
-    if st.get("step") == "set_value":
-        key = st.get("key", "")
-        set_setting(key, m.text)
-        return await m.reply_text(f"✅ {key} updated.")
+    # Broadcast
+    if step == "broadcast":
+        mode = st["mode"]
+        if mode == "BCALL":
+            await broadcast(m.text)
+        else:
+            await broadcast(m.text, active_only=True)
+        STATE.pop(uid, None)
+        return await m.reply_text("✔ Broadcast done.")
 
-    # broadcast
-    if st.get("step") == "broadcast":
-        text = m.text
-        mode = st.get("mode", "BCALL")
-        await broadcast(text, active_only=(mode=="BCACT"))
-        return await m.reply_text("✅ Broadcast queued.")
-
-    # ban/unban
-    if st.get("step") == "ban":
-        try:
-            target = int(m.text.strip())
-        except ValueError:
-            return await m.reply_text("Send numeric user ID.")
-        set_ban(target, True)
+    # Ban user
+    if step == "ban":
+        set_ban(int(m.text.strip()), True)
+        STATE.pop(uid, None)
         return await m.reply_text("🚫 User banned.")
-    if st.get("step") == "unban":
-        try:
-            target = int(m.text.strip())
-        except ValueError:
-            return await m.reply_text("Send numeric user ID.")
-        set_ban(target, False)
-        return await m.reply_text("✅ User unbanned.")
 
-    # balance ops
-    if st.get("step") == "baladd":
-        try:
-            tid, amt = m.text.strip().split()
-            tid = int(tid); amt = float(amt)
-        except Exception:
-            return await m.reply_text("Format: user_id amount")
-        credit(tid, amt)
-        return await m.reply_text("✅ Balance added.")
-    if st.get("step") == "balrem":
-        try:
-            tid, amt = m.text.strip().split()
-            tid = int(tid); amt = float(amt)
-        except Exception:
-            return await m.reply_text("Format: user_id amount")
-        ok = debit(tid, amt)
-        return await m.reply_text("✅ Balance removed." if ok else "Insufficient balance.")
-    if st.get("step") == "balrst":
-        try:
-            tid = int(m.text.strip())
-        except Exception:
-            return await m.reply_text("Send user_id")
+    # Unban user
+    if step == "unban":
+        set_ban(int(m.text.strip()), False)
+        STATE.pop(uid, None)
+        return await m.reply_text("✔ User unbanned.")
+
+    # Add balance
+    if step == "baladd":
+        tid, amt = m.text.strip().split()
+        credit(int(tid), float(amt))
+        STATE.pop(uid, None)
+        return await m.reply_text("✔ Balance added.")
+
+    # Remove balance
+    if step == "balrem":
+        tid, amt = m.text.strip().split()
+        debit(int(tid), float(amt))
+        STATE.pop(uid, None)
+        return await m.reply_text("✔ Balance removed.")
+
+    # Reset balance
+    if step == "balrst":
+        tid = int(m.text.strip())
         con = db(); cur = con.cursor()
         cur.execute("UPDATE users SET balance=0 WHERE user_id=?", (tid,))
         con.commit(); con.close()
-        return await m.reply_text("🧹 Balance reset.")
-    if st.get("step") == "bonusrst":
-        try:
-            tid = int(m.text.strip())
-        except Exception:
-            return await m.reply_text("Send user_id")
-        # Clear last_bonus_date so they can claim again today (admin override)
+        STATE.pop(uid, None)
+        return await m.reply_text("✔ Balance reset.")
+
+    # Reset bonus
+    if step == "bonusrst":
+        tid = int(m.text.strip())
         con = db(); cur = con.cursor()
         cur.execute("UPDATE users SET last_bonus_date=NULL WHERE user_id=?", (tid,))
         con.commit(); con.close()
-        return await m.reply_text("🎁 Daily bonus reset for user.")
+        STATE.pop(uid, None)
+        return await m.reply_text("✔ Bonus reset.")
 
-    # lookup
-    if st.get("step") == "lookup":
-        try:
-            tid = int(m.text.strip())
-        except Exception:
-            return await m.reply_text("Send user_id")
+    # Lookup user
+    if step == "lookup":
+        tid = int(m.text.strip())
         u = get_user(tid)
         if not u:
-            return await m.reply_text("Not found.")
-        text = (f"User: {u['user_id']}\n"
-                f"Joined: {u['joined_at']}\n"
-                f"Referrer: {u['referrer_id']}\n"
-                f"Balance: {get_setting('CURRENCY')}{float(u['balance']):.2f}\n"
-                f"Verified: {bool(u['verified'])}\n"
-                f"Ref bonus paid: {bool(u['referred_bonus_paid'])}\n"
-                f"Banned: {bool(u['is_banned'])}\n"
-                f"Last seen: {u['last_seen']}")
-        return await m.reply_text(text)
-
+            return await m.reply_text("❌ User not found")
+        txt = f"""User Info:
+ID: {u['user_id']}
+Joined: {u['joined_at']}
+Referrer: {u['referrer_id']}
+Balance: {u['balance']}
+Verified: {u['verified']}
+Banned: {u['is_banned']}
+"""
+        STATE.pop(uid, None)
+        return await m.reply_text(txt)
 # ----------------------- Admin Helpers -----------------------
 
 async def notify_admins(text: str):
