@@ -714,7 +714,7 @@ async def admin_callbacks(client: Client, cq: CallbackQuery):
         )
 
 # Admin text flows
-@app.on_message(filters.text & filters.user(is_admin))
+@app.on_message(filters.text & filters.user(OWNER_ID))
 async def admin_text_router(client: Client, m: Message):
     uid = m.from_user.id
 
