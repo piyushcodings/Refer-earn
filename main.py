@@ -354,9 +354,16 @@ USER_SUPPORT = "📢 Support"
 @app.on_message(filters.text & ~filters.command(["start", "admin"]))
 async def user_text_router(client: Client, m: Message):
     uid = m.from_user.id
+
+    # 🚀 FIX: If admin is in a state, avoid user router
+    if is_admin(uid) and uid in STATE:
+        return  # admin handler will catch this message
+
     mark_seen(uid)
+
     if get_setting("MAINTENANCE") == "1" and not is_admin(uid):
         return
+
     if is_banned(uid):
         return await m.reply_text("🚫 You are banned from using this bot.")
 
@@ -371,55 +378,89 @@ async def user_text_router(client: Client, m: Message):
 
     if text == USER_BAL:
         bal = get_balance(uid)
-        return await m.reply_text(f"🧾 <b>Your Balance:</b> {get_setting('CURRENCY')}{bal:.2f}", reply_markup=user_keyboard())
+        return await m.reply_text(
+            f"🧾 <b>Your Balance:</b> {get_setting('CURRENCY')}{bal:.2f}",
+            reply_markup=user_keyboard()
+        )
 
     if text == USER_BONUS:
         last = get_last_bonus_date(uid)
         today = date.today().isoformat()
         if last == today:
-            return await m.reply_text("You already claimed today's bonus.", reply_markup=user_keyboard())
+            return await m.reply_text(
+                "You already claimed today's bonus.",
+                reply_markup=user_keyboard()
+            )
         amt = float(get_setting("DAILY_BONUS"))
         credit(uid, amt)
         set_last_bonus_today(uid)
         bal = get_balance(uid)
-        return await m.reply_text(f"🎁 Daily bonus credited: {get_setting('CURRENCY')}{amt:.2f}\nCurrent balance: {get_setting('CURRENCY')}{bal:.2f}", reply_markup=user_keyboard())
+        return await m.reply_text(
+            f"🎁 Daily bonus credited: {get_setting('CURRENCY')}{amt:.2f}\n"
+            f"Current balance: {get_setting('CURRENCY')}{bal:.2f}",
+            reply_markup=user_keyboard()
+        )
 
     if text == USER_INVITE:
         bot = await app.get_me()
         link = f"https://t.me/{bot.username}?start={uid}"
-        return await m.reply_text(f"👥 <b>Invite & Earn</b>\nShare your link: <code>{link}</code>\nReferral bonus (on verification): {get_setting('CURRENCY')}{float(get_setting('REFERRAL_BONUS')):.2f}", reply_markup=user_keyboard())
+        return await m.reply_text(
+            f"👥 <b>Invite & Earn</b>\n"
+            f"Share your link: <code>{link}</code>\n"
+            f"Referral bonus (on verification): {get_setting('CURRENCY')}"
+            f"{float(get_setting('REFERRAL_BONUS')):.2f}",
+            reply_markup=user_keyboard()
+        )
 
     if text == USER_WITHDRAW:
         STATE[uid] = {"step": "wd_amount"}
-        return await m.reply_text(f"💳 <b>Withdrawal</b>\nMinimum: {get_setting('CURRENCY')}{float(get_setting('MIN_WITHDRAW')):.2f}\nEnter the amount you want to withdraw:", reply_markup=user_keyboard())
+        return await m.reply_text(
+            f"💳 <b>Withdrawal</b>\n"
+            f"Minimum: {get_setting('CURRENCY')}{float(get_setting('MIN_WITHDRAW')):.2f}\n"
+            f"Enter the amount you want to withdraw:",
+            reply_markup=user_keyboard()
+        )
 
     if text == USER_SUPPORT:
         return await m.reply_text("📢 Support: Please wait, support will contact you.", reply_markup=user_keyboard())
 
+    # Withdrawal Flow
     st = STATE.get(uid)
     if st and st.get("step") == "wd_amount":
         try:
             amt = float(text)
         except ValueError:
             return await m.reply_text("Please enter a valid number amount.", reply_markup=user_keyboard())
+
         if amt < float(get_setting("MIN_WITHDRAW")):
-            return await m.reply_text(f"Minimum withdrawal is {get_setting('CURRENCY')}{float(get_setting('MIN_WITHDRAW')):.2f}.", reply_markup=user_keyboard())
+            return await m.reply_text(
+                f"Minimum withdrawal is {get_setting('CURRENCY')}{float(get_setting('MIN_WITHDRAW')):.2f}.",
+                reply_markup=user_keyboard()
+            )
+
         STATE[uid] = {"step": "wd_upi", "amount": str(amt)}
         return await m.reply_text("Enter your UPI ID (e.g., username@bank):", reply_markup=user_keyboard())
 
     if st and st.get("step") == "wd_upi":
         upi = text
-        try:
-            amt = float(st["amount"])
-        except Exception:
-            amt = 0.0
+        amt = float(st["amount"])
         con = db(); cur = con.cursor()
-        cur.execute("INSERT INTO withdrawals(user_id, amount, upi, status, created_at) VALUES(?,?,?,?,?)", (uid, amt, upi, "pending", datetime.utcnow().isoformat()))
+        cur.execute(
+            "INSERT INTO withdrawals(user_id, amount, upi, status, created_at) "
+            "VALUES(?,?,?,?,?)",
+            (uid, amt, upi, "pending", datetime.utcnow().isoformat())
+        )
         con.commit(); con.close()
         STATE.pop(uid, None)
-        await notify_admins(f"🆕 Withdrawal Request\nUser: <a href='tg://user?id={uid}'>{uid}</a>\nAmount: {get_setting('CURRENCY')}{amt:.2f}\nUPI: <code>{upi}</code>")
-        return await m.reply_text("✅ Request submitted. Admins will review soon.", reply_markup=user_keyboard())
 
+        await notify_admins(
+            f"🆕 Withdrawal Request\n"
+            f"User: <a href='tg://user?id={uid}'>{uid}</a>\n"
+            f"Amount: {get_setting('CURRENCY')}{amt:.2f}\n"
+            f"UPI: <code>{upi}</code>"
+        )
+
+        return await m.reply_text("✅ Request submitted. Admins will review soon.", reply_markup=user_keyboard())
 # ---------- Admin Panel ----------
 def admin_home():
     return "<b>Admin Panel</b>\nUse the buttons below.", admin_menu()
